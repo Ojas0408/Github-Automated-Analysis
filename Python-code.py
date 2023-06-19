@@ -1,18 +1,18 @@
 import openai
 import requests
-import base64
 from dataclasses import dataclass
 from urllib.parse import urlparse
-from urllib.error import HTTPError
 from nltk.tokenize import word_tokenize
+import tkinter as tk
 
-access_token = "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"
+access_token = "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"
 headers = {
     "Authorization": f"Bearer {access_token}",
     "Accept": "application/vnd.github.v3+json"
 }
 
-openai.api_key = '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'
+openai.api_key = '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'
+
 
 @dataclass
 class GitHubUser:
@@ -53,7 +53,7 @@ def fetch_user_repositories(giturl):
 # Function to generate GPT-3.5 response using OpenAI API
 def generate_gpt_response(prompt):
     response = openai.Completion.create(
-        engine="text-davinci-003",
+        engine="text-davinci-002",
         prompt=prompt,
         max_tokens=100,
         n=1,
@@ -66,45 +66,64 @@ def generate_gpt_response(prompt):
     return response.choices[0].text.strip()
 
 
-# Take GitHub user ID as input
-user_id = input("Enter GitHub user ID: ")
-user_url = f"https://github.com/{user_id}"
+def analyze_repositories():
+    # Take GitHub user ID as input
+    user_id = user_entry.get()
+    user_url = f"https://github.com/{user_id}"
 
-try:
-    user = GitHubUser(giturl=user_url)
-    repositories = fetch_user_repositories(user.giturl)
+    try:
+        user = GitHubUser(giturl=user_url)
+        repositories = fetch_user_repositories(user.giturl)
 
-    complex_repository = None
-    max_complexity = float('-inf')
+        complex_repository = None
+        max_complexity = float('-inf')
 
-    for repo in repositories:
-        # Fetch README file contents
-        readme_url = f"{repo['url']}/readme"
-        readme_response = requests.get(readme_url, timeout=10, headers=headers)
-        readme_content = base64.b64decode(readme_response.json()['content']).decode('utf-8')
+        for repo in repositories:
+            # Generate GPT analysis for the repository
+            prompt = f"This repository, {repo['full_name']}, is technically complex."
 
-        # Generate GPT analysis for the repository
-        prompt = f"This repository, {repo['full_name']}, is technically complex because {readme_content}."
-        gpt_response = generate_gpt_response(prompt)
+            # Calculate complexity score based on GPT response
+            gpt_response = generate_gpt_response(prompt)
+            complexity_score = len(word_tokenize(gpt_response))
 
-        # Calculate complexity score based on GPT response
-        complexity_score = len(word_tokenize(gpt_response))
+            # Print repository analysis
+            result_text.insert(tk.END, f"Repository: {repo['full_name']}\n")
+            result_text.insert(tk.END, f"Complexity Score: {complexity_score}\n")
+            result_text.insert(tk.END, f"Analysis: {gpt_response}\n")
+            result_text.insert(tk.END, "-------------------------------------\n")
 
-        # Print repository analysis
-        print(f"Repository: {repo['full_name']}")
-        print(f"Complexity Score: {complexity_score}")
-        print(f"Analysis: {gpt_response}")
-        print("-------------------------------------")
+            # Update max complexity and complex repository if necessary
+            if complexity_score > max_complexity:
+                max_complexity = complexity_score
+                complex_repository = repo['full_name']
 
-        # Update max complexity and complex repository if necessary
-        if complexity_score > max_complexity:
-            max_complexity = complexity_score
-            complex_repository = repo['full_name']
+        # Print the most technically complex repository
+        result_text.insert(tk.END, f"The most technically complex repository is: {complex_repository}\n")
 
-    # Print the most technically complex repository
-    print(f"The most technically complex repository is: {complex_repository}")
+    except requests.exceptions.HTTPError as e:
+        result_text.insert(tk.END, f"HTTPError occurred: {str(e)}\n")
+    except ValueError as e:
+        result_text.insert(tk.END, f"ValueError occurred: {str(e)}\n")
 
-except requests.exceptions.HTTPError as e:
-    print(f"HTTPError occurred: {str(e)}")
-except ValueError as e:
-    print(f"ValueError occurred: {str(e)}")
+
+# Create the main Tkinter window
+window = tk.Tk()
+window.title("GitHub Repository Complexity Analysis")
+window.geometry("400x300")
+
+# Create the user entry label and entry field
+user_label = tk.Label(window, text="GitHub User ID:")
+user_label.pack()
+user_entry = tk.Entry(window)
+user_entry.pack()
+
+# Create the analyze button
+analyze_button = tk.Button(window, text="Analyze Repositories", command=analyze_repositories)
+analyze_button.pack()
+
+# Create the result text box
+result_text = tk.Text(window)
+result_text.pack()
+
+# Start the Tkinter event loop
+window.mainloop()
